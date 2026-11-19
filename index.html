@@ -99,6 +99,8 @@ const keys = { left: false, right: false, fire: false };
 let invaders, swarm, playerBullet, invaderBullets;
 let lives, score, wave, state; // state: 'play' | 'over'
 let invulnerable, fireTimer, stepTimer;
+let overBtnHover = false;
+const PLAY_AGAIN_BTN = { x: W / 2 - 100, y: H / 2 + 70, w: 200, h: 54 };
 
 function startWave() {
   invaders = [];
@@ -113,6 +115,8 @@ function startWave() {
 }
 
 function newGame() {
+  overBtnHover = false;
+  canvas.style.cursor = 'default';
   lives = 3;
   score = 0;
   wave = 1;
@@ -130,6 +134,13 @@ function invaderRect(inv) {
     w: img.width,
     h: img.height
   };
+}
+
+// Hitboxes are 80% of the sprite size, centred on the sprite.
+const HITBOX_SCALE = 0.8;
+function hitbox(r) {
+  const w = r.w * HITBOX_SCALE, h = r.h * HITBOX_SCALE;
+  return { x: r.x + (r.w - w) / 2, y: r.y + (r.h - h) / 2, w, h };
 }
 
 function overlap(a, b) {
@@ -211,6 +222,23 @@ window.addEventListener('keyup', (e) => {
   if (e.key === 'ArrowRight') keys.right = false;
   if (e.key === ' ') keys.fire = false;
 });
+function canvasPoint(e) {
+  const r = canvas.getBoundingClientRect();
+  return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height };
+}
+function inBtn(pt) {
+  const b = PLAY_AGAIN_BTN;
+  return pt.x >= b.x && pt.x <= b.x + b.w && pt.y >= b.y && pt.y <= b.y + b.h;
+}
+canvas.addEventListener('mousemove', (e) => {
+  overBtnHover = state === 'over' && inBtn(canvasPoint(e));
+  canvas.style.cursor = overBtnHover ? 'pointer' : 'default';
+});
+canvas.addEventListener('mouseleave', () => { overBtnHover = false; canvas.style.cursor = 'default'; });
+canvas.addEventListener('click', (e) => {
+  unlockAudio();
+  if (state === 'over' && inBtn(canvasPoint(e))) newGame();
+});
 window.addEventListener('blur', () => { keys.left = keys.right = keys.fire = false; });
 
 // ---------- Update ----------
@@ -258,7 +286,7 @@ function loseLife() {
     sfx.gameOver();
   } else {
     sfx.explosion();
-    invulnerable = 2;
+    invulnerable = 1.5;
     ship.x = W / 2 - ship.width / 2;
   }
 }
@@ -305,7 +333,7 @@ function update(dt) {
   // Player bullet vs invaders (one hit kills)
   if (playerBullet) {
     for (const inv of alive) {
-      if (overlap(playerBullet, invaderRect(inv))) {
+      if (overlap(playerBullet, hitbox(invaderRect(inv)))) {
         inv.alive = false;
         score += ROW_TYPES[inv.r].points;
         sfx.explosion();
@@ -316,7 +344,7 @@ function update(dt) {
   }
 
   // Invader bullets vs player
-  const shipRect = { x: ship.x, y: ship.y, w: ship.width, h: ship.height };
+  const shipRect = hitbox({ x: ship.x, y: ship.y, w: ship.width, h: ship.height });
   if (invulnerable <= 0) {
     for (const b of invaderBullets) {
       if (overlap(b, shipRect)) { loseLife(); break; }
@@ -405,8 +433,19 @@ function draw() {
   }
 
   if (state === 'over') {
-    drawText('GAME OVER', W / 2, H / 2 - 10, 'center', 48, '#ff3b3b');
-    drawText('Press Enter to restart', W / 2, H / 2 + 30, 'center', 20);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+    ctx.fillRect(0, 0, W, H);
+    drawText('GAME OVER', W / 2, H / 2 - 40, 'center', 64, '#ff3b3b');
+    drawText('FINAL SCORE ' + String(score).padStart(5, '0'), W / 2, H / 2 + 20, 'center', 26, '#fff');
+
+    const b = PLAY_AGAIN_BTN;
+    ctx.fillStyle = overBtnHover ? '#5dff4d' : '#1f7a17';
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+    ctx.lineWidth = overBtnHover ? 4 : 2;
+    ctx.strokeStyle = overBtnHover ? '#fff' : '#5dff4d';
+    ctx.strokeRect(b.x, b.y, b.w, b.h);
+    drawText('PLAY AGAIN', b.x + b.w / 2, b.y + b.h / 2 + 8, 'center', 24, overBtnHover ? '#000' : '#fff');
+    drawText('or press Enter', W / 2, b.y + b.h + 30, 'center', 16, '#aaa');
   }
 }
 
