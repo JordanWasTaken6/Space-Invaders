@@ -118,6 +118,44 @@ const BUNKER_Y = 450;
 const BUNKER_COUNT = 4;
 const BUNKER_COLOR = '#33ff33';
 
+// Ground line sits directly under the cannon; lives are shown below it.
+const GROUND_Y = 572;
+const GROUND_H = 3;
+
+// 5x7 pixel font (only the glyphs the HUD needs).
+const FONT = {
+  '0': ['.XXX.', 'X...X', 'X..XX', 'X.X.X', 'XX..X', 'X...X', '.XXX.'],
+  '1': ['..X..', '.XX..', '..X..', '..X..', '..X..', '..X..', '.XXX.'],
+  '2': ['.XXX.', 'X...X', '....X', '...X.', '..X..', '.X...', 'XXXXX'],
+  '3': ['XXXX.', '....X', '....X', '.XXX.', '....X', '....X', 'XXXX.'],
+  '4': ['...X.', '..XX.', '.X.X.', 'X..X.', 'XXXXX', '...X.', '...X.'],
+  '5': ['XXXXX', 'X....', 'XXXX.', '....X', '....X', 'X...X', '.XXX.'],
+  '6': ['..XX.', '.X...', 'X....', 'XXXX.', 'X...X', 'X...X', '.XXX.'],
+  '7': ['XXXXX', '....X', '...X.', '..X..', '.X...', '.X...', '.X...'],
+  '8': ['.XXX.', 'X...X', 'X...X', '.XXX.', 'X...X', 'X...X', '.XXX.'],
+  '9': ['.XXX.', 'X...X', 'X...X', '.XXXX', '....X', '...X.', '.XX..'],
+  'S': ['.XXXX', 'X....', 'X....', '.XXX.', '....X', '....X', 'XXXX.'],
+  'C': ['.XXX.', 'X...X', 'X....', 'X....', 'X....', 'X...X', '.XXX.'],
+  'O': ['.XXX.', 'X...X', 'X...X', 'X...X', 'X...X', 'X...X', '.XXX.'],
+  'R': ['XXXX.', 'X...X', 'X...X', 'XXXX.', 'X.X..', 'X..X.', 'X...X'],
+  'E': ['XXXXX', 'X....', 'X....', 'XXXX.', 'X....', 'X....', 'XXXXX']
+};
+
+function drawPixelText(text, x, y, scale, color) {
+  ctx.fillStyle = color;
+  for (const ch of text) {
+    const g = FONT[ch];
+    if (g) {
+      for (let r = 0; r < 7; r++) {
+        for (let c = 0; c < 5; c++) {
+          if (g[r][c] === 'X') ctx.fillRect(x + c * scale, y + r * scale, scale, scale);
+        }
+      }
+    }
+    x += 6 * scale; // 5 columns plus 1 column of spacing
+  }
+}
+
 // ---------- State ----------
 const ship = { width: cannonImg.width, height: cannonImg.height, x: W / 2 - cannonImg.width / 2, y: H - 54, speed: 300 };
 const keys = { left: false, right: false, fire: false };
@@ -401,7 +439,7 @@ function update(dt) {
     fireTimer = 0.5 + Math.random() * 0.9;
   }
   for (const b of invaderBullets) b.y += 220 * dt;
-  invaderBullets = invaderBullets.filter(b => b.y < H);
+  invaderBullets = invaderBullets.filter(b => b.y < GROUND_Y);
 
   // Bullets damage bunkers
   if (playerBullet && hitBunkers(playerBullet, false)) playerBullet = null;
@@ -507,10 +545,12 @@ function draw() {
   ctx.fillStyle = '#ffd200';
   for (const b of invaderBullets) ctx.fillRect(b.x, b.y, b.w, b.h);
 
-  // HUD
-  drawText('SCORE ' + String(score).padStart(5, '0'), 12, 26, 'left');
-  drawText('LIVES', W - 150, 26, 'right');
-  for (let i = 0; i < lives; i++) ctx.drawImage(cannonIcon, W - 140 + i * 34, 10);
+  // HUD: score top-left, ground line under the cannon, lives bottom-left
+  drawPixelText('SCORE ' + String(score).padStart(5, '0'), 12, 12, 3, '#fff');
+  ctx.fillStyle = CANNON_COLOR;
+  ctx.fillRect(0, GROUND_Y, W, GROUND_H);
+  drawPixelText(String(Math.max(0, lives)), 12, GROUND_Y + 10, 2, '#fff');
+  for (let i = 0; i < lives; i++) ctx.drawImage(cannonIcon, 36 + i * 34, GROUND_Y + 8);
 
   if (state === 'paused') {
     ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
