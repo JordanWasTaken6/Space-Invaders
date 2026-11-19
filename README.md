@@ -1,39 +1,43 @@
 # Space Invaders
 
-A browser clone of Space Invaders in a single `index.html` file. It uses vanilla JavaScript and an HTML5 canvas. No frameworks, no libraries, no build step.
+A browser version of the 1978 arcade game, built as a single `index.html` file with vanilla JavaScript and an HTML5 canvas. It has no dependencies and no build step.
 
-## Play
+Defend the bottom of the screen against 55 marching invaders. Shoot them down, shelter behind the bunkers, and survive with three lives.
 
-Open `index.html` in any modern browser.
+## Quick start
+
+Open `index.html` in a desktop browser. There is nothing to install.
 
 ## Controls
 
 | Key | Action |
 | --- | --- |
-| Left / Right arrow | Move your ship |
+| Left / Right arrow | Move the cannon |
 | Space | Fire |
 | P | Pause or resume |
 | Enter | Start the game, or restart after game over |
 
-## Features
+On the game over screen you can also click the **Play Again** button.
 
-- Coloured invaders drawn from the classic pixel sprites, with two animation frames.
-- Invaders march side to side and drop one row at each edge. They speed up as you destroy them.
-- Both you and the invaders fire. One hit destroys an invader.
-- Three lives. You blink for two seconds after a hit.
-- Scoring: top row 30 points, middle rows 20, bottom rows 10.
-- Clearing a wave starts a faster, slightly lower wave. Your score carries over.
-- Start screen, pause screen and game over screen.
-- Sound effects for shooting, explosions and game over, generated with the Web Audio API. There are no audio files.
+## Gameplay
 
-## Game rules
+- Invaders move in discrete steps and drop one row each time the formation reaches a screen edge. A full formation steps every 500 ms, and the interval shrinks as invaders are destroyed.
+- One hit destroys an invader. Squids score 30 points, crabs 20 and octopuses 10.
+- You can have one bullet in flight at a time. Only the lowest invader in each column fires, with at most three invader bullets on screen.
+- Four bunkers sit between you and the invaders. Bullets from either side erase a small area where they land.
+- You start with three lives. A hit costs one life, and the cannon flashes briefly while it cannot be hit again.
+- The game ends when you lose all lives or when an invader reaches your row. The game over screen shows your final score.
+- Clearing every invader starts a faster, slightly lower wave with fresh bunkers. Your score carries over.
 
-- You lose a life when an invader bullet hits your ship.
-- The game ends when you lose all three lives or when invaders reach your row.
-- Only one of your bullets can be on screen at a time.
-- Only the lowest invader in each column can fire, and no more than three invader bullets can be on screen at once.
+## Implementation notes
 
-## Notes
+- **Sprites.** The three invader designs (squid, crab, octopus, two animation frames each) and the player cannon are decoded at load time from the original arcade ROM bytes, as documented in the [Computer Archeology Space Invaders disassembly](https://www.computerarcheology.com/Arcade/SpaceInvaders/Code.html). The canvas uses `image-rendering: pixelated`.
+- **Collisions.** Hitboxes are 80% of sprite size, centred on the sprite.
+- **Bunkers.** Each bunker is a grid of cells. An impact clears a ragged area around the first cell a bullet touches.
+- **Audio.** Shooting, explosion and game over sounds are synthesised with the Web Audio API. No audio files are used. Browsers block audio until the page receives input, so sound starts on your first key press.
+- **HUD.** The score uses a 5x7 bitmap font drawn on the canvas. Remaining lives appear as cannon icons below the ground line.
+- **Loop.** Animation runs on `requestAnimationFrame` with a time-based update.
 
-- Browsers block audio until you interact with the page. Sound starts on your first key press.
-- The game is written for desktop browsers with a keyboard.
+## Requirements
+
+A desktop browser with canvas and Web Audio support, and a keyboard.
