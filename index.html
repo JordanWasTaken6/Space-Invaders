@@ -92,11 +92,37 @@ const EDGE_MARGIN = 10;
 const START_Y = 60;
 const STEP_INTERVAL = 0.5; // seconds per step at full strength
 
+// Bunker: arched shield with a notch underneath. 24 x 16 cells, 3 px per cell.
+const BUNKER_SHAPE = [
+  '......XXXXXXXXXXXX......',
+  '....XXXXXXXXXXXXXXXX....',
+  '..XXXXXXXXXXXXXXXXXXXX..',
+  'XXXXXXXXXXXXXXXXXXXXXXXX',
+  'XXXXXXXXXXXXXXXXXXXXXXXX',
+  'XXXXXXXXXXXXXXXXXXXXXXXX',
+  'XXXXXXXXXXXXXXXXXXXXXXXX',
+  'XXXXXXXXXXXXXXXXXXXXXXXX',
+  'XXXXXXXXXXXXXXXXXXXXXXXX',
+  'XXXXXXXXXXXXXXXXXXXXXXXX',
+  'XXXXXXXXXXXXXXXXXXXXXXXX',
+  'XXXXXXXXXXXXXXXXXXXXXXXX',
+  'XXXXXXXXXX....XXXXXXXXXX',
+  'XXXXXXXXX......XXXXXXXXX',
+  'XXXXXXXXX......XXXXXXXXX',
+  'XXXXXXXXX......XXXXXXXXX'
+];
+const BUNKER_CELL = 3;
+const BUNKER_COLS = BUNKER_SHAPE[0].length;
+const BUNKER_ROWS = BUNKER_SHAPE.length;
+const BUNKER_Y = 450;
+const BUNKER_COUNT = 4;
+const BUNKER_COLOR = '#33ff33';
+
 // ---------- State ----------
 const ship = { width: cannonImg.width, height: cannonImg.height, x: W / 2 - cannonImg.width / 2, y: H - 54, speed: 300 };
 const keys = { left: false, right: false, fire: false };
 
-let invaders, swarm, playerBullet, invaderBullets;
+let invaders, swarm, playerBullet, invaderBullets, bunkers;
 let lives, score, wave, state; // state: 'play' | 'over'
 let invulnerable, fireTimer, stepTimer;
 let overBtnHover = false;
@@ -110,6 +136,7 @@ function startWave() {
   swarm = { x: 80, y: START_Y + Math.min(wave - 1, 4) * 12, dir: 1, frame: 0 };
   playerBullet = null;
   invaderBullets = [];
+  bunkers = makeBunkers();
   fireTimer = 1;
   stepTimer = 0;
 }
@@ -134,6 +161,52 @@ function invaderRect(inv) {
     w: img.width,
     h: img.height
   };
+}
+
+function makeBunkers() {
+  const list = [];
+  const bw = BUNKER_COLS * BUNKER_CELL;
+  for (let i = 0; i < BUNKER_COUNT; i++) {
+    const centre = (W / BUNKER_COUNT) * (i + 0.5);
+    list.push({
+      x: Math.round(centre - bw / 2),
+      y: BUNKER_Y,
+      cells: BUNKER_SHAPE.map(row => Array.from(row, ch => ch === 'X'))
+    });
+  }
+  return list;
+}
+
+// Test a bullet against the bunkers. On contact, remove a small ragged area
+// around the first cell the bullet touches and return true.
+// movingDown is true for invader bullets, false for player bullets.
+function hitBunkers(bullet, movingDown) {
+  for (const bk of bunkers) {
+    const box = { x: bk.x, y: bk.y, w: BUNKER_COLS * BUNKER_CELL, h: BUNKER_ROWS * BUNKER_CELL };
+    if (!overlap(bullet, box)) continue;
+    const clampC = v => Math.max(0, Math.min(BUNKER_COLS - 1, v));
+    const clampR = v => Math.max(0, Math.min(BUNKER_ROWS - 1, v));
+    const cx0 = clampC(Math.floor((bullet.x - bk.x) / BUNKER_CELL));
+    const cx1 = clampC(Math.floor((bullet.x + bullet.w - 0.01 - bk.x) / BUNKER_CELL));
+    const cy0 = clampR(Math.floor((bullet.y - bk.y) / BUNKER_CELL));
+    const cy1 = clampR(Math.floor((bullet.y + bullet.h - 0.01 - bk.y) / BUNKER_CELL));
+    // Scan from the bullet's leading edge so the first cell it meets is the impact.
+    for (let n = 0; n <= cy1 - cy0; n++) {
+      const cy = movingDown ? cy1 - n : cy0 + n;
+      for (let cx = cx0; cx <= cx1; cx++) {
+        if (!bk.cells[cy][cx]) continue;
+        for (let dy = -3; dy <= 3; dy++) {
+          for (let dx = -3; dx <= 3; dx++) {
+            const x = cx + dx, y = cy + dy;
+            if (x < 0 || x >= BUNKER_COLS || y < 0 || y >= BUNKER_ROWS) continue;
+            if (dx * dx + dy * dy + Math.random() * 3 <= 7) bk.cells[y][x] = false;
+          }
+        }
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 // Hitboxes are 80% of the sprite size, centred on the sprite.
@@ -330,6 +403,10 @@ function update(dt) {
   for (const b of invaderBullets) b.y += 220 * dt;
   invaderBullets = invaderBullets.filter(b => b.y < H);
 
+  // Bullets damage bunkers
+  if (playerBullet && hitBunkers(playerBullet, false)) playerBullet = null;
+  invaderBullets = invaderBullets.filter(b => !hitBunkers(b, true));
+
   // Player bullet vs invaders (one hit kills)
   if (playerBullet) {
     for (const inv of alive) {
@@ -405,6 +482,16 @@ function draw() {
     if (!inv.alive) continue;
     const r = invaderRect(inv);
     ctx.drawImage(rowFrames[inv.r][swarm.frame], Math.round(r.x), Math.round(r.y));
+  }
+
+  // Bunkers
+  ctx.fillStyle = BUNKER_COLOR;
+  for (const bk of bunkers) {
+    for (let y = 0; y < BUNKER_ROWS; y++) {
+      for (let x = 0; x < BUNKER_COLS; x++) {
+        if (bk.cells[y][x]) ctx.fillRect(bk.x + x * BUNKER_CELL, bk.y + y * BUNKER_CELL, BUNKER_CELL, BUNKER_CELL);
+      }
+    }
   }
 
   // Player (blinks while invulnerable)
