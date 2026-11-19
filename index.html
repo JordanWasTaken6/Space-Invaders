@@ -7,7 +7,7 @@
 <style>
   html, body { margin: 0; height: 100%; background: #111; }
   body { display: flex; align-items: center; justify-content: center; }
-  canvas { background: #000; }
+  canvas { background: #000; image-rendering: pixelated; }
 </style>
 </head>
 <body>
@@ -18,33 +18,50 @@ const ctx = canvas.getContext('2d');
 const W = canvas.width;
 const H = canvas.height;
 
-// ---------- Sprites (two animation frames each) ----------
-const SPRITES = {
-  squid: [
-    ['...XX...', '..XXXX..', '.XXXXXX.', 'XX.XX.XX', 'XXXXXXXX', '..X..X..', '.X.XX.X.', 'X.X..X.X'],
-    ['...XX...', '..XXXX..', '.XXXXXX.', 'XX.XX.XX', 'XXXXXXXX', '.X.XX.X.', 'X......X', '.X....X.']
-  ],
-  crab: [
-    ['..X.....X..', '...X...X...', '..XXXXXXX..', '.XX.XXX.XX.', 'XXXXXXXXXXX', 'X.XXXXXXX.X', 'X.X.....X.X', '...XX.XX...'],
-    ['..X.....X..', 'X..X...X..X', 'X.XXXXXXX.X', 'XXX.XXX.XXX', 'XXXXXXXXXXX', '.XXXXXXXXX.', '..X.....X..', '.X.......X.']
-  ],
-  octopus: [
-    ['....XXXX....', '.XXXXXXXXXX.', 'XXXXXXXXXXXX', 'XXX..XX..XXX', 'XXXXXXXXXXXX', '...XX..XX...', '..XX.XX.XX..', 'XX........XX'],
-    ['....XXXX....', '.XXXXXXXXXX.', 'XXXXXXXXXXXX', 'XXX..XX..XXX', 'XXXXXXXXXXXX', '..XXX..XXX..', '.XX..XX..XX.', '..XX....XX..']
-  ]
+// ---------- Sprites ----------
+// Pixel data comes from the original 1978 arcade ROM (Computer Archeology's
+// Space Invaders disassembly: https://www.computerarcheology.com/Arcade/SpaceInvaders/Code.html).
+// The ROM stores each sprite as columns: one byte per column, bit 7 is the top pixel.
+const ROM = {
+  squid:   { start: 4, width: 8,  frames: [
+    '00 00 00 00 19 3A 6D FA FA 6D 3A 19 00 00 00 00',
+    '00 00 00 00 1A 3D 68 FC FC 68 3D 1A 00 00 00 00'] },
+  crab:    { start: 3, width: 11, frames: [
+    '00 00 00 78 1D BE 6C 3C 3C 3C 6C BE 1D 78 00 00',
+    '00 00 00 0E 18 BE 6D 3D 3C 3D 6D BE 18 0E 00 00'] },
+  octopus: { start: 2, width: 12, frames: [
+    '00 00 39 79 7A 6E EC FA FA EC 6E 7A 79 39 00 00',
+    '00 00 38 7A 7F 6D EC FA FA EC 6D 7F 7A 38 00 00'] },
+  cannon:  { start: 2, width: 13, frames: [
+    '00 00 0F 1F 1F 1F 1F 7F FF 7F 1F 1F 1F 1F 0F 00'] }
 };
+
+// Turn column bytes into 8 rows of 'X' / '.' strings.
+function decodeSprite(hex, start, width) {
+  const bytes = hex.split(' ').map(h => parseInt(h, 16)).slice(start, start + width);
+  const rows = [];
+  for (let r = 0; r < 8; r++) {
+    rows.push(bytes.map(b => (b & (0x80 >> r)) ? 'X' : '.').join(''));
+  }
+  return rows;
+}
+
+const SPRITES = {};
+for (const [name, d] of Object.entries(ROM)) {
+  SPRITES[name] = d.frames.map(f => decodeSprite(f, d.start, d.width));
+}
 const SCALE = 3;
 
 // Pre-render each sprite frame to its own canvas in its own colour.
-function renderSprite(rows, color) {
+function renderSprite(rows, color, scale = SCALE) {
   const c = document.createElement('canvas');
-  c.width = rows[0].length * SCALE;
-  c.height = rows.length * SCALE;
+  c.width = rows[0].length * scale;
+  c.height = rows.length * scale;
   const g = c.getContext('2d');
   g.fillStyle = color;
   rows.forEach((row, y) => {
     for (let x = 0; x < row.length; x++) {
-      if (row[x] === 'X') g.fillRect(x * SCALE, y * SCALE, SCALE, SCALE);
+      if (row[x] === 'X') g.fillRect(x * scale, y * scale, scale, scale);
     }
   });
   return c;
@@ -59,6 +76,10 @@ const ROW_TYPES = [
   { type: 'octopus', color: '#5dff4d', points: 10 }
 ];
 const rowFrames = ROW_TYPES.map(r => SPRITES[r.type].map(f => renderSprite(f, r.color)));
+const CANNON_COLOR = '#33ff33';
+const cannonImg = renderSprite(SPRITES.cannon[0], CANNON_COLOR);
+const cannonIcon = renderSprite(SPRITES.cannon[0], CANNON_COLOR, 2);
+ctx.imageSmoothingEnabled = false;
 
 // ---------- Constants ----------
 const COLS = 11;
@@ -71,7 +92,7 @@ const EDGE_MARGIN = 10;
 const START_Y = 60;
 
 // ---------- State ----------
-const ship = { width: 40, height: 20, x: W / 2 - 20, y: H - 50, speed: 300 };
+const ship = { width: cannonImg.width, height: cannonImg.height, x: W / 2 - cannonImg.width / 2, y: H - 54, speed: 300 };
 const keys = { left: false, right: false, fire: false };
 
 let invaders, swarm, playerBullet, invaderBullets;
@@ -353,13 +374,12 @@ function draw() {
   for (const inv of invaders) {
     if (!inv.alive) continue;
     const r = invaderRect(inv);
-    ctx.drawImage(rowFrames[inv.r][swarm.frame], r.x, r.y);
+    ctx.drawImage(rowFrames[inv.r][swarm.frame], Math.round(r.x), Math.round(r.y));
   }
 
   // Player (blinks while invulnerable)
   if (state === 'play' && (invulnerable <= 0 || Math.floor(invulnerable * 10) % 2 === 0)) {
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(ship.x, ship.y, ship.width, ship.height);
+    ctx.drawImage(cannonImg, Math.round(ship.x), ship.y);
   }
 
   // Bullets
@@ -373,8 +393,7 @@ function draw() {
   // HUD
   drawText('SCORE ' + String(score).padStart(5, '0'), 12, 26, 'left');
   drawText('LIVES', W - 150, 26, 'right');
-  ctx.fillStyle = '#fff';
-  for (let i = 0; i < lives; i++) ctx.fillRect(W - 140 + i * 40, 12, 30, 14);
+  for (let i = 0; i < lives; i++) ctx.drawImage(cannonIcon, W - 140 + i * 34, 10);
 
   if (state === 'paused') {
     ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
