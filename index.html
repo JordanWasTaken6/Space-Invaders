@@ -90,6 +90,7 @@ const STEP_X = 8;
 const DROP_Y = 16;
 const EDGE_MARGIN = 10;
 const START_Y = 60;
+const STEP_INTERVAL = 0.5; // seconds per step at full strength
 
 // ---------- State ----------
 const ship = { width: cannonImg.width, height: cannonImg.height, x: W / 2 - cannonImg.width / 2, y: H - 54, speed: 300 };
@@ -284,7 +285,8 @@ function update(dt) {
   // Swarm march: speeds up as invaders die
   const alive = aliveInvaders();
   const total = ROWS * COLS;
-  const interval = Math.max(0.04, 0.7 * (alive.length / total) - (wave - 1) * 0.03);
+  // 500 ms per step with a full formation, shrinking in proportion as invaders die.
+  const interval = Math.max(0.05, STEP_INTERVAL * (alive.length / total) - (wave - 1) * 0.03);
   stepTimer += dt;
   if (stepTimer >= interval) {
     stepTimer = 0;
